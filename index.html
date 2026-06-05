@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>HVAC 工程管理</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #222635;
+    --border: #2e3347;
+    --accent: #4f8ef7;
+    --accent2: #f7a44f;
+    --green: #4fcf8e;
+    --red: #f75f5f;
+    --yellow: #f7d94f;
+    --text: #e8eaf2;
+    --muted: #7c82a0;
+    --radius: 14px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding-bottom: 80px;
+  }
+
+  /* SETUP SCREEN */
+  .setup-screen {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .setup-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 28px 24px;
+    width: 100%;
+    max-width: 420px;
+  }
+  .setup-logo { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--accent); letter-spacing: 3px; text-transform: uppercase; margin-bottom: 8px; }
+  .setup-title { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+  .setup-sub { font-size: 13px; color: var(--muted); margin-bottom: 24px; line-height: 1.5; }
+  .setup-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 6px; display: block; }
+  .setup-input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    outline: none;
+    margin-bottom: 14px;
+    transition: border-color 0.2s;
+  }
+  .setup-input:focus { border-color: var(--accent); }
+  .setup-btn {
+    width: 100%;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    padding: 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+  .setup-hint {
+    background: var(--surface2);
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 16px;
+    line-height: 1.6;
+  }
+  .setup-hint a { color: var(--accent); text-decoration: none; }
+
+  /* LOADING */
+  .loading-screen {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 16px;
+    color: var(--muted);
+  }
+  .spinner {
+    width: 32px; height: 32px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* HEADER */
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 20px 12px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header-top { display: flex; align-items: center; justify-content: space-between; }
+  .logo { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; }
+  .header h1 { font-size: 20px; font-weight: 600; margin-top: 2px; }
+  .header-right { display: flex; gap: 8px; align-items: center; }
+  .add-btn {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    width: 36px; height: 36px;
+    font-size: 22px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .sync-indicator {
+    font-size: 10px;
+    color: var(--green);
+    font-family: 'DM Mono', monospace;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .sync-dot {
+    width: 6px; height: 6px;
+    background: var(--green);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* TABS */
+  .tabs {
+    display: flex;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab {
+    flex: 1; min-width: 72px;
+    padding: 10px 6px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* MAIN */
+  .main { padding: 16px; }
+
+  /* STATS */
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+    text-align: center;
+  }
+  .stat-num { font-family: 'DM Mono', monospace; font-size: 24px; font-weight: 500; }
+  .stat-label { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /* JOB CARDS */
+  .jobs-list { display: flex; flex-direction: column; gap: 10px; }
+  .job-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 14px 14px 17px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+  }
+  .job-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+  }
+  .job-card.status-lead::before { background: var(--yellow); }
+  .job-card.status-quoted::before { background: var(--accent); }
+  .job-card.status-permit::before { background: var(--accent2); }
+  .job-card.status-scheduled::before { background: #a44ff7; }
+  .job-card.status-wip::before { background: var(--green); }
+  .job-card.status-done::before { background: var(--muted); }
+
+  .job-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .job-name { font-weight: 600; font-size: 15px; }
+  .job-type { font-family: 'DM Mono', monospace; font-size: 10px; padding: 3px 7px; border-radius: 6px; background: var(--surface2); color: var(--muted); white-space: nowrap; }
+  .job-addr { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .job-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+
+  .status-badge { font-size: 11px; font-weight: 500; padding: 3px 9px; border-radius: 20px; }
+  .status-lead { background: rgba(247,217,79,0.15); color: var(--yellow); }
+  .status-quoted { background: rgba(79,142,247,0.15); color: var(--accent); }
+  .status-permit { background: rgba(247,164,79,0.15); color: var(--accent2); }
+  .status-scheduled { background: rgba(164,79,247,0.15); color: #a44ff7; }
+  .status-wip { background: rgba(79,207,142,0.15); color: var(--green); }
+  .status-done { background: rgba(124,130,160,0.15); color: var(--muted); }
+
+  .checklist-mini { display: flex; gap: 4px; }
+  .check-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
+  .check-dot.done { background: var(--green); }
+
+  /* EMPTY */
+  .empty { text-align: center; padding: 48px 20px; color: var(--muted); }
+  .empty-icon { font-size: 40px; margin-bottom: 12px; }
+
+  /* OVERLAY / MODAL */
+  .overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 200;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  .overlay.open { display: flex; }
+  .modal {
+    background: var(--surface);
+    border-radius: 20px 20px 0 0;
+    width: 100%;
+    max-height: 92vh;
+    overflow-y: auto;
+    padding: 20px;
+    animation: slideUp 0.25s ease;
+  }
+  @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .modal-handle { width: 36px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 20px; }
+  .modal-title { font-size: 18px; font-weight: 600; margin-bottom: 20px; }
+
+  /* FORM */
+  .form-group { margin-bottom: 14px; }
+  .form-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; display: block; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; }
+  .form-input, .form-select, .form-textarea {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s;
+    -webkit-appearance: none;
+  }
+  .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--accent); }
+  .form-select option { background: var(--surface); }
+  .form-textarea { resize: none; height: 80px; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  /* CHECKLIST */
+  .section-divider {
+    background: var(--surface2);
+    margin: 4px -20px;
+    padding: 8px 20px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .check-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 0;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+  }
+  .check-item:last-child { border-bottom: none; }
+  .check-box {
+    width: 22px; height: 22px;
+    border: 2px solid var(--border);
+    border-radius: 6px;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+  .check-item.checked .check-box { background: var(--green); border-color: var(--green); }
+  .check-item.checked .check-box::after { content: '✓'; color: #0f1117; font-size: 13px; font-weight: 700; }
+  .check-item.checked .check-text { text-decoration: line-through; color: var(--muted); }
+  .check-text { font-size: 14px; }
+  .check-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+  /* BUTTONS */
+  .btn-row { display: flex; gap: 10px; margin-top: 20px; }
+  .btn {
+    flex: 1; padding: 14px; border-radius: 12px;
+    font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 600;
+    border: none; cursor: pointer; transition: opacity 0.2s;
+  }
+  .btn:active { opacity: 0.8; }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-danger { background: var(--surface2); color: var(--red); border: 1px solid var(--border); }
+  .btn-cancel { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+
+  /* NOTES */
+  .note-item { background: var(--surface2); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; font-size: 13px; }
+  .note-time { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .add-note-row { display: flex; gap: 8px; margin-top: 8px; }
+  .add-note-input {
+    flex: 1; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 12px; color: var(--text);
+    font-family: 'DM Sans', sans-serif; font-size: 14px; outline: none;
+  }
+  .add-note-btn { background: var(--accent); color: white; border: none; border-radius: 10px; padding: 10px 14px; font-size: 14px; cursor: pointer; }
+
+  /* BOTTOM NAV */
+  .bottom-nav {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: var(--surface); border-top: 1px solid var(--border);
+    display: flex; padding: 8px 0 12px; z-index: 150;
+  }
+  .nav-item {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    gap: 3px; cursor: pointer; padding: 4px; color: var(--muted);
+    font-size: 10px; transition: color 0.2s;
+  }
+  .nav-item.active { color: var(--accent); }
+  .nav-icon { font-size: 20px; }
+
+  /* PERMIT ALERT */
+  .permit-alert {
+    background: rgba(247,164,79,0.1); border: 1px solid rgba(247,164,79,0.3);
+    border-radius: var(--radius); padding: 14px; margin-bottom: 10px;
+  }
+  .permit-alert-title { font-weight: 600; font-size: 14px; color: var(--accent2); }
+  .permit-alert-sub { font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+  .saving-toast {
+    position: fixed; top: 80px; left: 50%; transform: translateX(-50%);
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 20px; padding: 8px 16px; font-size: 13px; color: var(--muted);
+    z-index: 999; opacity: 0; transition: opacity 0.3s; pointer-events: none;
+  }
+  .saving-toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- SETUP SCREEN -->
+<div id="setupScreen" class="setup-screen" style="display:none">
+  <div class="setup-card">
+    <div class="setup-logo">HVAC PRO</div>
+    <div class="setup-title">连接数据库</div>
+    <div class="setup-sub">第一次使用需要填入Supabase信息，之后不需要重复填写。</div>
+
+    <label class="setup-label">Supabase URL</label>
+    <input class="setup-input" id="setup_url" placeholder="https://xxxxxx.supabase.co">
+
+    <label class="setup-label">Supabase Anon Key</label>
+    <input class="setup-input" id="setup_key" placeholder="eyJhbGciOiJIUzI1NiIs...">
+
+    <button class="setup-btn" onclick="saveConfig()">连接并开始使用 →</button>
+
+    <div class="setup-hint">
+      📖 不知道怎么获取？查看项目里的 <strong>部署教程.md</strong> 第2步。<br><br>
+      填好之后这些信息会存在你的浏览器里，下次打开不需要重新填。
+    </div>
+  </div>
+</div>
+
+<!-- LOADING -->
+<div id="loadingScreen" class="loading-screen">
+  <div class="spinner"></div>
+  <div style="font-size:13px">连接中...</div>
+</div>
+
+<!-- MAIN APP (hidden until loaded) -->
+<div id="appScreen" style="display:none">
+  <div class="header">
+    <div class="header-top">
+      <div>
+        <div class="logo">HVAC PRO</div>
+        <h1>工程管理</h1>
+      </div>
+      <div class="header-right">
+        <div class="sync-indicator"><div class="sync-dot"></div>实时同步</div>
+        <button class="add-btn" onclick="openNewJob()">+</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="tabs" id="tabsBar">
+    <div class="tab active" onclick="switchTab('all', this)">全部</div>
+    <div class="tab" onclick="switchTab('active', this)">进行中</div>
+    <div class="tab" onclick="switchTab('permit', this)">Permit</div>
+    <div class="tab" onclick="switchTab('payment', this)">收款</div>
+    <div class="tab" onclick="switchTab('done', this)">完成</div>
+  </div>
+
+  <div class="main" id="mainView"></div>
+
+  <div class="bottom-nav">
+    <div class="nav-item active" onclick="switchNav('jobs', this)">
+      <div class="nav-icon">🔧</div><div>工程</div>
+    </div>
+    <div class="nav-item" onclick="switchNav('todo', this)">
+      <div class="nav-icon">⚡</div><div>待办</div>
+    </div>
+    <div class="nav-item" onclick="switchNav('clients', this)">
+      <div class="nav-icon">👥</div><div>客户</div>
+    </div>
+  </div>
+</div>
+
+<!-- ADD/EDIT JOB MODAL -->
+<div class="overlay" id="jobFormOverlay">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="formTitle">新增工程</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">客户姓名</label>
+        <input class="form-input" id="f_name" placeholder="Mr. Chen">
+      </div>
+      <div class="form-group">
+        <label class="form-label">电话</label>
+        <input class="form-input" id="f_phone" placeholder="647-xxx-xxxx" type="tel">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">地址</label>
+      <input class="form-input" id="f_addr" placeholder="123 Main St, Toronto">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">工程类型</label>
+        <select class="form-select" id="f_type">
+          <option value="new">新装 New Install</option>
+          <option value="replace">更换 Replacement</option>
+          <option value="repair">维修 Repair</option>
+          <option value="commercial">商业 Commercial</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">当前阶段</label>
+        <select class="form-select" id="f_status">
+          <option value="lead">询价 Lead</option>
+          <option value="quoted">已报价 Quoted</option>
+          <option value="permit">申请Permit</option>
+          <option value="scheduled">已排期</option>
+          <option value="wip">施工中</option>
+          <option value="done">完成</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">报价金额</label>
+        <input class="form-input" id="f_quote" placeholder="$0.00">
+      </div>
+      <div class="form-group">
+        <label class="form-label">预约日期</label>
+        <input class="form-input" id="f_date" type="date">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">备注</label>
+      <textarea class="form-textarea" id="f_notes" placeholder="设备型号、特殊要求等..."></textarea>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-cancel" onclick="closeModal('jobFormOverlay')">取消</button>
+      <button class="btn btn-primary" onclick="saveJob()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- JOB DETAIL MODAL -->
+<div class="overlay" id="jobDetailOverlay">
+  <div class="modal" id="jobDetailContent"></div>
+</div>
+
+<div class="saving-toast" id="savingToast">保存中...</div>
+
+<script>
+// ─── CONFIG ──────────────────────────────────────────────────────────────────
+let supabase = null;
+let jobs = [];
+let editingJobId = null;
+let currentTab = 'all';
+let currentNav = 'jobs';
+
+const CHECKLIST_TEMPLATES = {
+  sales: {
+    label: '销售阶段', color: '#f7d94f', owner: '老公',
+    items: [
+      { id: 's1', text: '首次联系客户', sub: 'First contact' },
+      { id: 's2', text: '上门/电话评估', sub: 'Site assessment' },
+      { id: 's3', text: '发送报价单', sub: 'Send quote' },
+      { id: 's4', text: '跟进确认', sub: 'Follow up' },
+      { id: 's5', text: '客户签合同 / 收定金', sub: 'Signed contract + deposit' },
+    ]
+  },
+  permit: {
+    label: 'Permit 阶段', color: '#f7a44f', owner: '老公',
+    items: [
+      { id: 'p1', text: '确认是否需要Permit', sub: 'Check if permit required' },
+      { id: 'p2', text: '准备申请材料', sub: 'Prepare documents' },
+      { id: 'p3', text: '提交Permit申请', sub: 'Submit application' },
+      { id: 'p4', text: 'Permit批准', sub: 'Permit approved' },
+    ]
+  },
+  install: {
+    label: '施工阶段', color: '#4fcf8e', owner: '爸爸',
+    items: [
+      { id: 'i1', text: '确认材料/设备到位', sub: 'Materials & equipment ready' },
+      { id: 'i2', text: '施工完成', sub: 'Installation complete' },
+      { id: 'i3', text: '系统测试运行', sub: 'System test & run' },
+      { id: 'i4', text: '清理现场', sub: 'Clean up site' },
+      { id: 'i5', text: 'Inspection 预约', sub: 'Book inspection' },
+      { id: 'i6', text: 'Inspection 通过', sub: 'Inspection passed' },
+    ]
+  },
+  close: {
+    label: '收尾阶段', color: '#4f8ef7', owner: '老公',
+    items: [
+      { id: 'c1', text: '向客户讲解使用方法', sub: 'Walk client through system' },
+      { id: 'c2', text: '发送最终发票', sub: 'Send final invoice' },
+      { id: 'c3', text: '收取尾款', sub: 'Collect final payment' },
+      { id: 'c4', text: '发保修文件', sub: 'Send warranty docs' },
+      { id: 'c5', text: '请客户写Google评价', sub: 'Ask for Google review' },
+    ]
+  }
+};
+
+const STATUS_LABELS = {
+  lead: '询价', quoted: '已报价', permit: 'Permit中',
+  scheduled: '已排期', wip: '施工中', done: '完成'
+};
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+async function init() {
+  const url = localStorage.getItem('hvac_sb_url');
+  const key = localStorage.getItem('hvac_sb_key');
+
+  if (!url || !key) {
+    document.getElementById('loadingScreen').style.display = 'none';
+    document.getElementById('setupScreen').style.display = 'flex';
+    return;
+  }
+
+  try {
+    supabase = window.supabase.createClient(url, key);
+    await loadJobs();
+    document.getElementById('loadingScreen').style.display = 'none';
+    document.getElementById('appScreen').style.display = 'block';
+    render();
+    subscribeRealtime();
+  } catch(e) {
+    document.getElementById('loadingScreen').style.display = 'none';
+    document.getElementById('setupScreen').style.display = 'flex';
+  }
+}
+
+function saveConfig() {
+  const url = document.getElementById('setup_url').value.trim();
+  const key = document.getElementById('setup_key').value.trim();
+  if (!url || !key) { alert('请填写URL和Key'); return; }
+  localStorage.setItem('hvac_sb_url', url);
+  localStorage.setItem('hvac_sb_key', key);
+  document.getElementById('setupScreen').style.display = 'none';
+  document.getElementById('loadingScreen').style.display = 'flex';
+  init();
+}
+
+// ─── SUPABASE ─────────────────────────────────────────────────────────────────
+async function loadJobs() {
+  const { data, error } = await supabase
+    .from('jobs')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  jobs = data || [];
+}
+
+async function upsertJob(job) {
+  showToast('保存中...');
+  const { error } = await supabase.from('jobs').upsert(job);
+  if (error) { alert('保存失败: ' + error.message); return false; }
+  showToast('已保存 ✓');
+  return true;
+}
+
+async function deleteJobFromDB(id) {
+  const { error } = await supabase.from('jobs').delete().eq('id', id);
+  if (error) { alert('删除失败: ' + error.message); }
+}
+
+function subscribeRealtime() {
+  supabase
+    .channel('jobs-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'jobs' }, async () => {
+      await loadJobs();
+      render();
+      if (document.getElementById('jobDetailOverlay').classList.contains('open')) {
+        // refresh detail if open
+      }
+    })
+    .subscribe();
+}
+
+function showToast(msg) {
+  const t = document.getElementById('savingToast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+// ─── RENDER ───────────────────────────────────────────────────────────────────
+function render() {
+  if (currentNav === 'jobs') renderJobs();
+  else if (currentNav === 'todo') renderTodo();
+  else if (currentNav === 'clients') renderClients();
+}
+
+function getFilteredJobs() {
+  switch(currentTab) {
+    case 'active': return jobs.filter(j => j.status !== 'done');
+    case 'permit': return jobs.filter(j => j.status === 'permit' || (j.checks && j.checks.p3 && !j.checks.p4));
+    case 'payment': return jobs.filter(j => j.checks && j.checks.c2 && !j.checks.c3);
+    case 'done': return jobs.filter(j => j.status === 'done');
+    default: return [...jobs];
+  }
+}
+
+function checkProgress(job) {
+  const all = ['s1','s2','s3','s4','s5','p1','p2','p3','p4','i1','i2','i3','i4','i5','i6','c1','c2','c3','c4','c5'];
+  const done = all.filter(id => job.checks && job.checks[id]).length;
+  return { done, total: all.length };
+}
+
+function renderJobs() {
+  const filtered = getFilteredJobs();
+  const active = jobs.filter(j => j.status !== 'done').length;
+  const payPending = jobs.filter(j => j.checks && j.checks.c2 && !j.checks.c3).length;
+  const permitPending = jobs.filter(j => j.status === 'permit').length;
+  const typeLabels = { new:'新装', replace:'更换', repair:'维修', commercial:'商业' };
+
+  let html = `
+    <div class="stats">
+      <div class="stat-card"><div class="stat-num" style="color:var(--accent)">${jobs.length}</div><div class="stat-label">总工程</div></div>
+      <div class="stat-card"><div class="stat-num" style="color:var(--green)">${active}</div><div class="stat-label">进行中</div></div>
+      <div class="stat-card"><div class="stat-num" style="color:var(--accent2)">${payPending}</div><div class="stat-label">待收款</div></div>
+    </div>`;
+
+  if (permitPending > 0 && currentTab === 'all') {
+    html += `<div class="permit-alert">
+      <div class="permit-alert-title">⚠️ ${permitPending} 个工程等待Permit</div>
+      <div class="permit-alert-sub">点击上方"Permit"标签查看详情</div>
+    </div>`;
+  }
+
+  if (filtered.length === 0) {
+    html += `<div class="empty"><div class="empty-icon">🏠</div><div style="font-size:15px;font-weight:600;margin-bottom:6px">暂无工程</div><div style="font-size:13px">点击右上角 + 新增工程</div></div>`;
+  } else {
+    html += `<div class="jobs-list">`;
+    filtered.forEach(job => {
+      const dots = ['s1','s5','p4','i2','c3'].map(id =>
+        `<div class="check-dot ${job.checks && job.checks[id] ? 'done' : ''}"></div>`
+      ).join('');
+      html += `
+        <div class="job-card status-${job.status}" onclick="openJobDetail('${job.id}')">
+          <div class="job-top">
+            <div>
+              <div class="job-name">${job.name || '未命名客户'}</div>
+              <div class="job-addr">${job.addr || '暂无地址'}</div>
+            </div>
+            <div class="job-type">${typeLabels[job.type]||'新装'}</div>
+          </div>
+          <div class="job-meta">
+            <span class="status-badge status-${job.status}">${STATUS_LABELS[job.status]}</span>
+            <div class="checklist-mini">${dots}</div>
+          </div>
+          ${job.quote ? `<div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--green);margin-top:8px">${job.quote}</div>` : ''}
+        </div>`;
+    });
+    html += `</div>`;
+  }
+  document.getElementById('mainView').innerHTML = html;
+}
+
+function renderTodo() {
+  let items = [];
+  jobs.filter(j => j.status !== 'done').forEach(job => {
+    const c = job.checks || {};
+    if (!c.s3) items.push({ job, text: `发报价: ${job.name}`, icon: '📋', color: 'var(--yellow)' });
+    if (c.s5 && !c.p3 && (job.type === 'new' || job.type === 'commercial'))
+      items.push({ job, text: `申请Permit: ${job.name}`, icon: '📝', color: 'var(--accent2)' });
+    if (c.c2 && !c.c3)
+      items.push({ job, text: `收取尾款: ${job.name}`, icon: '💰', color: 'var(--green)' });
+    if (c.i2 && !c.c1)
+      items.push({ job, text: `讲解完工: ${job.name}`, icon: '✅', color: 'var(--accent)' });
+  });
+
+  let html = `<div style="font-size:13px;color:var(--muted);margin-bottom:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px">待办提醒</div>`;
+  if (items.length === 0) {
+    html += `<div class="empty"><div class="empty-icon">🎉</div><div style="font-size:15px;font-weight:600">暂无待办！</div></div>`;
+  } else {
+    items.forEach(item => {
+      html += `<div class="job-card" onclick="openJobDetail('${item.job.id}')" style="border-left:3px solid ${item.color};padding-left:14px;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:20px">${item.icon}</span>
+          <div>
+            <div style="font-weight:600;font-size:14px">${item.text}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">${item.job.addr||''}</div>
+          </div>
+        </div>
+      </div>`;
+    });
+  }
+  document.getElementById('mainView').innerHTML = html;
+}
+
+function renderClients() {
+  let html = `<div style="font-size:13px;color:var(--muted);margin-bottom:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px">客户列表</div>`;
+  if (jobs.length === 0) {
+    html += `<div class="empty"><div class="empty-icon">👥</div><div style="font-size:15px;font-weight:600">暂无客户</div></div>`;
+  } else {
+    [...jobs].sort((a,b)=>(a.name||'').localeCompare(b.name||'')).forEach(job => {
+      html += `<div class="job-card" onclick="openJobDetail('${job.id}')" style="margin-bottom:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div style="font-weight:600">${job.name||'未命名'}</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">${job.phone||''} · ${job.addr||''}</div>
+          </div>
+          <span class="status-badge status-${job.status}">${STATUS_LABELS[job.status]}</span>
+        </div>
+      </div>`;
+    });
+  }
+  document.getElementById('mainView').innerHTML = html;
+}
+
+// ─── JOB DETAIL ───────────────────────────────────────────────────────────────
+function openJobDetail(id) {
+  const job = jobs.find(j => j.id === id);
+  if (!job) return;
+  const checks = job.checks || {};
+  const notes = job.notes || [];
+  const typeLabels = { new:'新装 New Install', replace:'更换 Replacement', repair:'维修 Repair', commercial:'商业 Commercial' };
+  const prog = checkProgress(job);
+
+  let checklistHTML = '';
+  Object.entries(CHECKLIST_TEMPLATES).forEach(([key, section]) => {
+    checklistHTML += `<div class="section-divider" style="color:${section.color}">${section.label}<span style="font-size:10px;opacity:0.6">${section.owner}</span></div>`;
+    section.items.forEach(item => {
+      checklistHTML += `
+        <div class="check-item ${checks[item.id] ? 'checked' : ''}" onclick="toggleCheck('${id}', '${item.id}')">
+          <div class="check-box"></div>
+          <div><div class="check-text">${item.text}</div><div class="check-sub">${item.sub}</div></div>
+        </div>`;
+    });
+  });
+
+  let notesHTML = notes.map(n =>
+    `<div class="note-item">${n.text}<div class="note-time">${n.time}</div></div>`
+  ).join('');
+
+  document.getElementById('jobDetailContent').innerHTML = `
+    <div class="modal-handle" onclick="closeModal('jobDetailOverlay')"></div>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px">
+      <div>
+        <div style="font-size:19px;font-weight:700">${job.name||'未命名'}</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:2px">${job.addr||''}</div>
+      </div>
+      <span class="status-badge status-${job.status}" style="margin-top:4px;flex-shrink:0">${STATUS_LABELS[job.status]}</span>
+    </div>
+    <div style="display:flex;gap:8px;margin:12px 0;flex-wrap:wrap">
+      ${job.phone ? `<div style="font-size:12px;background:var(--surface2);padding:5px 10px;border-radius:8px">📞 ${job.phone}</div>` : ''}
+      ${job.quote ? `<div style="font-size:12px;background:var(--surface2);padding:5px 10px;border-radius:8px;color:var(--green)">💰 ${job.quote}</div>` : ''}
+      ${job.date ? `<div style="font-size:12px;background:var(--surface2);padding:5px 10px;border-radius:8px">📅 ${job.date}</div>` : ''}
+    </div>
+    ${job.notes_text ? `<div style="font-size:13px;color:var(--muted);background:var(--surface2);padding:10px 12px;border-radius:10px;margin-bottom:12px">${job.notes_text}</div>` : ''}
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div style="font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Checklist</div>
+      <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--accent)">${prog.done}/${prog.total}</div>
+    </div>
+    ${checklistHTML}
+
+    <div style="font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin:16px 0 10px">施工备注</div>
+    ${notesHTML}
+    <div class="add-note-row">
+      <input class="add-note-input" id="noteInput_${id}" placeholder="添加备注...">
+      <button class="add-note-btn" onclick="addNote('${id}')">添加</button>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-cancel" onclick="editJob('${id}')">✏️ 编辑</button>
+      <button class="btn btn-danger" onclick="confirmDelete('${id}')">删除</button>
+    </div>
+  `;
+  document.getElementById('jobDetailOverlay').classList.add('open');
+}
+
+async function toggleCheck(jobId, checkId) {
+  const job = jobs.find(j => j.id === jobId);
+  if (!job) return;
+  if (!job.checks) job.checks = {};
+  job.checks[checkId] = !job.checks[checkId];
+
+  // Auto-update status
+  if (job.checks.c3) job.status = 'done';
+  else if (job.checks.i2) job.status = 'wip';
+  else if (job.checks.s5) job.status = (job.type === 'new' || job.type === 'commercial') ? 'permit' : 'scheduled';
+
+  await upsertJob(job);
+  openJobDetail(jobId);
+  render();
+}
+
+async function addNote(jobId) {
+  const input = document.getElementById(`noteInput_${jobId}`);
+  if (!input || !input.value.trim()) return;
+  const job = jobs.find(j => j.id === jobId);
+  if (!job) return;
+  if (!job.notes) job.notes = [];
+  job.notes.push({
+    text: input.value.trim(),
+    time: new Date().toLocaleString('zh-CN', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })
+  });
+  await upsertJob(job);
+  openJobDetail(jobId);
+}
+
+// ─── ADD/EDIT JOB ─────────────────────────────────────────────────────────────
+function openNewJob() {
+  editingJobId = null;
+  document.getElementById('formTitle').textContent = '新增工程';
+  ['f_name','f_phone','f_addr','f_quote','f_notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f_type').value = 'new';
+  document.getElementById('f_status').value = 'lead';
+  document.getElementById('f_date').value = '';
+  document.getElementById('jobFormOverlay').classList.add('open');
+}
+
+function editJob(id) {
+  const job = jobs.find(j => j.id === id);
+  if (!job) return;
+  editingJobId = id;
+  closeModal('jobDetailOverlay');
+  document.getElementById('formTitle').textContent = '编辑工程';
+  document.getElementById('f_name').value = job.name || '';
+  document.getElementById('f_phone').value = job.phone || '';
+  document.getElementById('f_addr').value = job.addr || '';
+  document.getElementById('f_type').value = job.type || 'new';
+  document.getElementById('f_status').value = job.status || 'lead';
+  document.getElementById('f_quote').value = job.quote || '';
+  document.getElementById('f_date').value = job.date || '';
+  document.getElementById('f_notes').value = job.notes_text || '';
+  document.getElementById('jobFormOverlay').classList.add('open');
+}
+
+async function saveJob() {
+  const name = document.getElementById('f_name').value.trim();
+  if (!name) { alert('请填写客户姓名'); return; }
+
+  const jobData = {
+    name,
+    phone: document.getElementById('f_phone').value.trim(),
+    addr: document.getElementById('f_addr').value.trim(),
+    type: document.getElementById('f_type').value,
+    status: document.getElementById('f_status').value,
+    quote: document.getElementById('f_quote').value.trim(),
+    date: document.getElementById('f_date').value || null,
+    notes_text: document.getElementById('f_notes').value.trim(),
+  };
+
+  if (editingJobId) {
+    const existing = jobs.find(j => j.id === editingJobId);
+    Object.assign(existing, jobData);
+    await upsertJob(existing);
+  } else {
+    const newJob = {
+      ...jobData,
+      id: crypto.randomUUID(),
+      checks: {},
+      notes: [],
+    };
+    jobs.unshift(newJob);
+    await upsertJob(newJob);
+  }
+
+  closeModal('jobFormOverlay');
+  render();
+}
+
+async function confirmDelete(id) {
+  if (!confirm('确认删除这个工程？')) return;
+  jobs = jobs.filter(j => j.id !== id);
+  await deleteJobFromDB(id);
+  closeModal('jobDetailOverlay');
+  render();
+}
+
+// ─── NAV/TAB ──────────────────────────────────────────────────────────────────
+function switchTab(tab, el) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  render();
+}
+
+function switchNav(nav, el) {
+  currentNav = nav;
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tabsBar').style.display = nav === 'jobs' ? 'flex' : 'none';
+  render();
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+document.querySelectorAll('.overlay').forEach(ov => {
+  ov.addEventListener('click', e => { if (e.target === ov) ov.classList.remove('open'); });
+});
+
+// ─── START ────────────────────────────────────────────────────────────────────
+// Support ?reset in URL to clear saved config
+if (location.search.includes('reset')) {
+  localStorage.removeItem('hvac_sb_url');
+  localStorage.removeItem('hvac_sb_key');
+  history.replaceState({}, '', location.pathname);
+}
+
+// Wait for supabase library to be available before init
+function waitForSupabase(attempts) {
+  if (attempts <= 0) {
+    document.getElementById('loadingScreen').style.display = 'none';
+    document.getElementById('setupScreen').style.display = 'flex';
+    return;
+  }
+  if (window.supabase && typeof window.supabase.createClient === 'function') {
+    init();
+  } else {
+    setTimeout(() => waitForSupabase(attempts - 1), 200);
+  }
+}
+waitForSupabase(20);
+</script>
+</body>
+</html>
